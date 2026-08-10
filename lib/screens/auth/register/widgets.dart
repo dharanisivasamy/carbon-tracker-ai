@@ -1,0 +1,1 @@
+/// Register screen widget placeholders.

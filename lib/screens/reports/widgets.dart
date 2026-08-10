@@ -1,0 +1,1 @@
+/// Reports screen widget placeholders.

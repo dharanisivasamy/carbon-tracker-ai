@@ -1,0 +1,2 @@
+import {Router} from 'express'; import {body} from 'express-validator'; import {login,me,register} from '../controllers/authController.js'; import {requireAuth} from '../middleware/authMiddleware.js';
+const r=Router(); r.post('/register',[body('name').trim().notEmpty(),body('email').isEmail(),body('password').isLength({min:8})],register); r.post('/login',[body('email').isEmail(),body('password').notEmpty()],login); r.get('/me',requireAuth,me); export default r;

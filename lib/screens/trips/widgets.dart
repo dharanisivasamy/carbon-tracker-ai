@@ -1,0 +1,1 @@
+/// Trips screen widget placeholders.

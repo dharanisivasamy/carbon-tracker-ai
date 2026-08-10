@@ -1,0 +1,1 @@
+/// Onboarding screen widget placeholders.

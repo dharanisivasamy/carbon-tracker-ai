@@ -1,0 +1,1 @@
+/// Trips screen controller placeholder.

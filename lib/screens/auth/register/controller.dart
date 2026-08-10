@@ -1,0 +1,1 @@
+/// Register screen controller placeholder.
