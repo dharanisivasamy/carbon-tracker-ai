@@ -10,10 +10,27 @@ class ApiService {
   final _client = ApiClient();
 
   Future<Map<String, dynamic>> login(String email, String password) =>
-      _client.request('POST', ApiEndpoints.login, body: {'email': email, 'password': password});
+      _client.request(
+        'POST',
+        ApiEndpoints.login,
+        body: {'email': email, 'password': password},
+      );
 
-  Future<Map<String, dynamic>> register(String name, String email, String password) =>
-      _client.request('POST', ApiEndpoints.register, body: {'name': name, 'email': email, 'password': password});
+  Future<Map<String, dynamic>> register(
+    String name,
+    String email,
+    String password,
+  ) => _client.request(
+    'POST',
+    ApiEndpoints.register,
+    body: {'name': name, 'email': email, 'password': password},
+  );
+
+  Future<Map<String, dynamic>> googleLogin(String idToken) => _client.request(
+    'POST',
+    ApiEndpoints.googleLogin,
+    body: {'idToken': idToken},
+  );
 
   Future<Map<String, dynamic>> createTrip({
     required String mode,
@@ -21,20 +38,20 @@ class ApiService {
     required DateTime date,
     String? notes,
     required String token,
-  }) =>
-      _client.request(
-        'POST',
-        ApiEndpoints.trips,
-        token: token,
-        body: {
-          'transportMode': mode,
-          'distance': distance,
-          'date': date.toIso8601String().split('T').first,
-          'notes': notes,
-        },
-      );
+  }) => _client.request(
+    'POST',
+    ApiEndpoints.trips,
+    token: token,
+    body: {
+      'transportMode': mode,
+      'distance': distance,
+      'date': date.toIso8601String().split('T').first,
+      'notes': notes,
+    },
+  );
 
-  Future<Map<String, dynamic>> trips(String token) => _client.request('GET', ApiEndpoints.trips, token: token);
+  Future<Map<String, dynamic>> trips(String token) =>
+      _client.request('GET', ApiEndpoints.trips, token: token);
 
   Future<Map<String, dynamic>> trip(String id, String token) =>
       _client.request('GET', '${ApiEndpoints.trips}/$id', token: token);
@@ -42,18 +59,36 @@ class ApiService {
   Future<Map<String, dynamic>> deleteTrip(String id, String token) =>
       _client.request('DELETE', '${ApiEndpoints.trips}/$id', token: token);
 
-  Future<Map<String, dynamic>> summary(String token) => _client.request('GET', ApiEndpoints.tripSummary, token: token);
+  Future<Map<String, dynamic>> summary(String token) =>
+      _client.request('GET', ApiEndpoints.tripSummary, token: token);
 
   Future<Map<String, dynamic>> reports(String period, String token) =>
-      _client.request('GET', '${ApiEndpoints.tripReports}?period=$period', token: token);
+      _client.request(
+        'GET',
+        '${ApiEndpoints.tripReports}?period=$period',
+        token: token,
+      );
 
   Future<Map<String, dynamic>> recommendations(String token) =>
       _client.request('GET', ApiEndpoints.tripRecommendations, token: token);
+
+  Future<Map<String, dynamic>> classifyTrip({
+    required Map<String, dynamic> features,
+    required String token,
+  }) => _client.request(
+    'POST',
+    ApiEndpoints.tripClassify,
+    token: token,
+    body: features,
+    timeout: const Duration(seconds: 2),
+  );
 
   /// Confirms the token is still accepted by the backend. Used to validate
   /// a stored session on app start instead of trusting local storage alone.
   Future<Map<String, dynamic>> me(String token) =>
       _client.request('GET', ApiEndpoints.me, token: token);
+  Future<Map<String, dynamic>> deleteMyData(String token) =>
+      _client.request('DELETE', ApiEndpoints.deleteMyData, token: token);
 
   /// Uploads any locally saved trips that have not yet been synced to the
   /// backend. Each trip is uploaded at most once per call and is only
@@ -69,7 +104,8 @@ class ApiService {
           notes: trip.notes,
           token: token,
         );
-        final id = (response['data'] as Map<String, dynamic>?)?['_id'] as String?;
+        final id =
+            (response['data'] as Map<String, dynamic>?)?['_id'] as String?;
         if (id != null) {
           await TripRepository.instance.markSynced(trip.id, id);
         }

@@ -1,0 +1,47 @@
+{
+  "project_info": {
+    "project_number": "101345389497",
+    "project_id": "carbonfootprint-15615",
+    "storage_bucket": "carbonfootprint-15615.firebasestorage.app"
+  },
+  "client": [
+    {
+      "client_info": {
+        "mobilesdk_app_id": "1:101345389497:android:d73332f50bd36d301ae468",
+        "android_client_info": {
+          "package_name": "com.example.carbon_tracker_v2"
+        }
+      },
+      "oauth_client": [
+        {
+          "client_id": "101345389497-avknm32vqeai8h80n2edm4vh6iauu84h.apps.googleusercontent.com",
+          "client_type": 1,
+          "android_info": {
+            "package_name": "com.example.carbon_tracker_v2",
+            "certificate_hash": "262d611ac30e1ae5175241ff842a5ceeb3e1a383"
+          }
+        },
+        {
+          "client_id": "101345389497-coh642fdnc28mn16r5b79j51s2egjpu0.apps.googleusercontent.com",
+          "client_type": 3
+        }
+      ],
+      "api_key": [
+        {
+          "current_key": "AIzaSyAiZvnnN0LmrcYh5V48cZvwA1Wn1_lvMaI"
+        }
+      ],
+      "services": {
+        "appinvite_service": {
+          "other_platform_oauth_client": [
+            {
+              "client_id": "101345389497-coh642fdnc28mn16r5b79j51s2egjpu0.apps.googleusercontent.com",
+              "client_type": 3
+            }
+          ]
+        }
+      }
+    }
+  ],
+  "configuration_version": "1"
+}

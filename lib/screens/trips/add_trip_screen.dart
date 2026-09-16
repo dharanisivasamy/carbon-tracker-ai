@@ -12,7 +12,13 @@ import 'package:carbon_tracker/widgets/common/app_text_fields.dart';
 import 'package:flutter/material.dart';
 
 class AddTripScreen extends StatefulWidget {
-  const AddTripScreen({super.key});
+  const AddTripScreen({super.key, this.initialDistanceKm, this.initialMode, this.autoSave = false, this.onSaved});
+
+  /// Used by GPS confirmation. Normal manual entry continues to use defaults.
+  final double? initialDistanceKm;
+  final TransportMode? initialMode;
+  final bool autoSave;
+  final ValueChanged<TransportMode>? onSaved;
 
   @override
   State<AddTripScreen> createState() => _AddTripScreenState();
@@ -31,6 +37,11 @@ class _AddTripScreenState extends State<AddTripScreen> {
     super.initState();
     _selectedDate = DateUtils.dateOnly(DateTime.now());
     _dateController = TextEditingController(text: _formatDate(_selectedDate));
+    if (widget.initialDistanceKm != null) {
+      _distanceController.text = widget.initialDistanceKm!.toStringAsFixed(2);
+    }
+    _selectedMode = widget.initialMode ?? _selectedMode;
+    if (widget.autoSave) WidgetsBinding.instance.addPostFrameCallback((_) => _saveTrip());
   }
 
   @override
@@ -177,6 +188,7 @@ class _AddTripScreenState extends State<AddTripScreen> {
         synced: serverId != null,
       ),
     );
+    widget.onSaved?.call(_selectedMode);
     if (!mounted) return;
     setState(() => _isSaving = false);
     Navigator.of(context).pushNamedAndRemoveUntil(

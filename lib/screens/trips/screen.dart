@@ -9,6 +9,13 @@ import 'package:carbon_tracker/services/api/api_client.dart';
 import 'package:carbon_tracker/services/api/api_service.dart';
 import 'package:carbon_tracker/services/auth/auth_service.dart';
 import 'package:carbon_tracker/services/location/trip_tracking_service.dart';
+import 'package:carbon_tracker/services/gps/auto_trip_detector.dart';
+import 'package:carbon_tracker/services/gps/gps_service.dart';
+import 'package:carbon_tracker/screens/trips/add_trip_screen.dart';
+import 'package:carbon_tracker/screens/trips/auto_detection_card.dart';
+import 'package:carbon_tracker/repositories/labelled_window_repository.dart';
+import 'package:flutter/services.dart';
+import 'package:shared_preferences/shared_preferences.dart';
 import 'package:carbon_tracker/utils/app_logger.dart';
 import 'package:carbon_tracker/widgets/cards/app_card.dart';
 import 'package:carbon_tracker/widgets/common/app_text_fields.dart';
@@ -28,10 +35,17 @@ class _TripHistoryScreenState extends State<TripHistoryScreen> {
   TransportMode? _filter;
   TripSort _sort = TripSort.newest;
   final _trackingService = TripTrackingService.instance;
+  late final AutoTripDetector _autoDetector = AutoTripDetector(GpsService.instance);
+  StreamSubscription<DetectedTrip>? _completedTripSubscription;
+  DetectedTrip? _detectedTrip;
   bool _isSavingTrackedTrip = false;
   @override
   void initState() {
     super.initState();
+    _completedTripSubscription = _autoDetector.completedTrips.listen((trip) {
+      LabelledWindowRepository.instance.capture(trip);
+      if (mounted) setState(() => _detectedTrip = trip);
+    });
     _refresh();
   }
 
@@ -60,7 +74,63 @@ class _TripHistoryScreenState extends State<TripHistoryScreen> {
   void dispose() {
     // Trips are foreground-only; leaving this screen must not leave GPS on.
     _trackingService.stopTracking();
+    _completedTripSubscription?.cancel();
+    _autoDetector.stop();
     super.dispose();
+  }
+
+  Future<void> _enableAutoDetection() async {
+    if (!await _showTrainingConsent()) return;
+    final result = await _autoDetector.start();
+    if (result == GpsStartResult.started || !mounted) return;
+    final message = switch (result) {
+      GpsStartResult.locationServicesDisabled => 'Turn on location services to detect trips.',
+      GpsStartResult.permissionDenied => 'Location permission is needed to detect trips.',
+      GpsStartResult.permissionDeniedForever => 'Location permission is permanently denied. Enable it in Settings.',
+      GpsStartResult.started => '',
+    };
+    ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text(message)));
+  }
+
+  Future<bool> _showTrainingConsent() async {
+    final prefs = await SharedPreferences.getInstance();
+    if (prefs.getBool('training_window_consent_v1') ?? false) return true;
+    if (!mounted) return false;
+    final accepted = await showDialog<bool>(context: context, builder: (context) => AlertDialog(title: const Text('Trip-data training consent'), content: const Text('Confirmed trip GPS and speed feature windows will be stored on this device for model training. This does not store your name or account identity. You can export the labelled data manually later.'), actions: [TextButton(onPressed: () => Navigator.pop(context, false), child: const Text('Not now')), FilledButton(onPressed: () => Navigator.pop(context, true), child: const Text('I agree'))]));
+    if (accepted == true) await prefs.setBool('training_window_consent_v1', true);
+    return accepted == true;
+  }
+
+  TransportMode _modeForDetectedTrip(DetectedTravelMode mode) => switch (mode) {
+        DetectedTravelMode.walking => TransportMode.walking,
+        DetectedTravelMode.cycling => TransportMode.cycling,
+        // Review 1 intentionally cannot split a vehicle into car/bus/train.
+        DetectedTravelMode.vehicle => TransportMode.car,
+        DetectedTravelMode.stationary => TransportMode.walking,
+      };
+
+  String _trainingLabel(TransportMode mode) => switch (mode) {
+        TransportMode.walking => 'walking',
+        TransportMode.cycling => 'cycling',
+        _ => 'vehicle',
+      };
+
+  void _confirmDetectedTrip() {
+    final trip = _detectedTrip;
+    if (trip == null) return;
+    setState(() => _detectedTrip = null);
+    Navigator.of(context).push(MaterialPageRoute(
+      builder: (_) => AddTripScreen(initialDistanceKm: trip.distanceKm, initialMode: _modeForDetectedTrip(trip.mode), autoSave: true, onSaved: (mode) => LabelledWindowRepository.instance.label(trip.id, _trainingLabel(mode))),
+    ));
+  }
+
+  void _editDetectedTrip() {
+    final trip = _detectedTrip;
+    if (trip == null) return;
+    setState(() => _detectedTrip = null);
+    Navigator.of(context).push(MaterialPageRoute(
+      builder: (_) => AddTripScreen(initialDistanceKm: trip.distanceKm, initialMode: _modeForDetectedTrip(trip.mode), onSaved: (mode) => LabelledWindowRepository.instance.label(trip.id, _trainingLabel(mode))),
+    ));
   }
 
   Future<void> _startTrip() async {
@@ -169,7 +239,7 @@ class _TripHistoryScreenState extends State<TripHistoryScreen> {
   @override
   Widget build(BuildContext context) => Scaffold(
     backgroundColor: AppColors.surface,
-    appBar: AppBar(title: Text('Trip History', style: AppTextStyles.title)),
+    appBar: AppBar(title: Text('Trip History', style: AppTextStyles.title), actions: [IconButton(tooltip: 'Export labelled training windows', icon: const Icon(Icons.ios_share_rounded), onPressed: () async { await Clipboard.setData(ClipboardData(text: LabelledWindowRepository.instance.exportJson())); if (context.mounted) ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('Labelled training windows copied to clipboard.'))); })]),
     body: SafeArea(
       top: false,
       child: ValueListenableBuilder<List<TripModel>>(
@@ -184,6 +254,14 @@ class _TripHistoryScreenState extends State<TripHistoryScreen> {
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.stretch,
                   children: [
+                    AutoDetectionCard(
+                      isEnabled: _autoDetector.isListening,
+                      trip: _detectedTrip,
+                      onEnable: _enableAutoDetection,
+                      onConfirm: _confirmDetectedTrip,
+                      onEdit: _editDetectedTrip,
+                    ),
+                    const SizedBox(height: AppSpacing.md),
                     ValueListenableBuilder<TripTrackingState>(
                       valueListenable: _trackingService.state,
                       builder: (context, tracking, _) => _TrackingCard(

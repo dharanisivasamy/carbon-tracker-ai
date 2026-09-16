@@ -51,6 +51,7 @@ class ApiClient {
     String path, {
     Map<String, dynamic>? body,
     String? token,
+    Duration timeout = const Duration(seconds: 8),
   }) async {
     final uri = Uri.parse('${ApiEndpoints.baseUrl}$path');
 
@@ -65,15 +66,15 @@ class ApiClient {
 
       response = await _client
           .send(httpRequest)
-          .timeout(const Duration(seconds: 10));
+          .timeout(timeout);
     } on TimeoutException {
       throw ApiException(
-        'The request timed out. Check your connection and try again.',
+        'Request timed out after ${timeout.inSeconds}s. The server may be reachable but slow.',
         isTimeout: true,
       );
     } on SocketException {
       throw ApiException(
-        'Unable to connect to the server. Check that the backend is running and reachable on your network.',
+        'Server unreachable. Check the API base URL, backend process, Wi-Fi/LAN, and firewall.',
         isNetworkError: true,
       );
     } on HandshakeException {
@@ -83,7 +84,7 @@ class ApiClient {
       );
     } on http.ClientException {
       throw ApiException(
-        'Unable to reach the server. Please try again later.',
+        'Server unreachable. The backend did not accept a connection.',
         isNetworkError: true,
       );
     }

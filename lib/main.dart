@@ -1,15 +1,25 @@
 import 'package:flutter/material.dart';
+import 'package:flutter/foundation.dart';
+import 'package:firebase_core/firebase_core.dart';
 
+import 'firebase_options.dart';
 import 'package:carbon_tracker/core/navigation/navigation_service.dart';
 import 'package:carbon_tracker/core/routes/app_routes.dart';
 import 'package:carbon_tracker/core/theme/app_theme.dart';
 import 'package:carbon_tracker/repositories/trip_repository.dart';
+import 'package:carbon_tracker/repositories/labelled_window_repository.dart';
 import 'package:carbon_tracker/services/api/api_client.dart';
+import 'package:carbon_tracker/services/api/api_endpoints.dart';
 import 'package:carbon_tracker/services/auth/auth_service.dart';
 
 Future<void> main() async {
   WidgetsFlutterBinding.ensureInitialized();
+  await Firebase.initializeApp(
+    options: DefaultFirebaseOptions.currentPlatform,
+  );
   await TripRepository.instance.initialize();
+  await LabelledWindowRepository.instance.initialize();
+  debugPrint('[API] Base URL: ${ApiEndpoints.baseUrl}');
   _wireSessionExpiryHandling();
   runApp(const CarbonTrackerApp());
 }

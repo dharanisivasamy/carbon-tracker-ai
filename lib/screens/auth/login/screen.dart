@@ -22,6 +22,7 @@ class _LoginScreenState extends State<LoginScreen> {
   final _password = TextEditingController();
 
   bool _loading = false;
+  bool _googleLoading = false;
   bool _shownRouteMessage = false;
 
   @override
@@ -35,9 +36,9 @@ class _LoginScreenState extends State<LoginScreen> {
       _shownRouteMessage = true;
       WidgetsBinding.instance.addPostFrameCallback((_) {
         if (!mounted) return;
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text(message)),
-        );
+        ScaffoldMessenger.of(
+          context,
+        ).showSnackBar(SnackBar(content: Text(message)));
       });
     }
   }
@@ -50,33 +51,37 @@ class _LoginScreenState extends State<LoginScreen> {
   }
 
   Future<void> _login() async {
-    if (_loading) return;
+    if (_loading || _googleLoading) return;
 
     if (_email.text.trim().isEmpty) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('Email is required.')),
-      );
+      ScaffoldMessenger.of(
+        context,
+      ).showSnackBar(const SnackBar(content: Text('Email is required.')));
       return;
     }
-    if (!RegExp(r'^[^@]+@[^@]+\.[^@]+$').hasMatch(_email.text.trim())) { ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('Enter a valid email.'))); return; }
-    if (_password.text.isEmpty) { ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('Password is required.'))); return; }
+    if (!RegExp(r'^[^@]+@[^@]+\.[^@]+$').hasMatch(_email.text.trim())) {
+      ScaffoldMessenger.of(
+        context,
+      ).showSnackBar(const SnackBar(content: Text('Enter a valid email.')));
+      return;
+    }
+    if (_password.text.isEmpty) {
+      ScaffoldMessenger.of(
+        context,
+      ).showSnackBar(const SnackBar(content: Text('Password is required.')));
+      return;
+    }
 
     setState(() {
       _loading = true;
     });
 
     try {
-      await AuthService.instance.login(
-        _email.text.trim(),
-        _password.text,
-      );
+      await AuthService.instance.login(_email.text.trim(), _password.text);
 
       if (!mounted) return;
 
-      Navigator.pushReplacementNamed(
-        context,
-        AppRoutes.dashboard,
-      );
+      Navigator.pushReplacementNamed(context, AppRoutes.dashboard);
     } catch (e) {
       final message = e is ApiException
           ? e.message
@@ -84,17 +89,51 @@ class _LoginScreenState extends State<LoginScreen> {
       logDebug('[AUTH] Login failed: $message');
       if (!mounted) return;
 
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(
-          content: Text(message),
-        ),
-      );
+      ScaffoldMessenger.of(
+        context,
+      ).showSnackBar(SnackBar(content: Text(message)));
     } finally {
       if (mounted) {
         setState(() {
           _loading = false;
         });
       }
+    }
+  }
+
+  Future<void> _signInWithGoogle() async {
+    if (_loading || _googleLoading) return;
+
+    setState(() => _googleLoading = true);
+    try {
+      await AuthService.instance.signInWithGoogle();
+      if (!mounted) return;
+
+      ScaffoldMessenger.of(
+        context,
+      ).showSnackBar(const SnackBar(content: Text('Signed in with Google.')));
+      Navigator.pushReplacementNamed(context, AppRoutes.dashboard);
+    } on ApiException catch (error) {
+      logDebug('[AUTH] Google backend sign-in failed: ${error.message}');
+      if (!mounted) return;
+      ScaffoldMessenger.of(
+        context,
+      ).showSnackBar(SnackBar(content: Text(error.message)));
+    } on GoogleAuthenticationException catch (error) {
+      logDebug('[AUTH] Google Sign-In failed: ${error.message}');
+      if (!mounted) return;
+      ScaffoldMessenger.of(
+        context,
+      ).showSnackBar(SnackBar(content: Text(error.message)));
+    } catch (_) {
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+          content: Text('Google Sign-In failed. Please try again.'),
+        ),
+      );
+    } finally {
+      if (mounted) setState(() => _googleLoading = false);
     }
   }
 
@@ -114,63 +153,35 @@ class _LoginScreenState extends State<LoginScreen> {
             controller: _email,
           ),
 
-          const SizedBox(
-            height: AppSpacing.sm,
-          ),
+          const SizedBox(height: AppSpacing.sm),
 
           PasswordField(label: 'Password', controller: _password),
 
-          Align(
-            alignment: Alignment.centerRight,
-            child: TextButton(
-              onPressed: () {},
-              child: const Text('Forgot password?'),
-            ),
-          ),
+          LoadingButton(label: 'Login', isLoading: _loading, onPressed: _login),
 
-          const SizedBox(
-            height: AppSpacing.sm,
-          ),
-
-          LoadingButton(
-            label: 'Login',
-            isLoading: _loading,
-            onPressed: _login,
-          ),
-
-          const SizedBox(
-            height: AppSpacing.md,
-          ),
+          const SizedBox(height: AppSpacing.md),
 
           const _Divider(),
 
-          const SizedBox(
-            height: AppSpacing.md,
-          ),
+          const SizedBox(height: AppSpacing.md),
 
           AppOutlinedButton(
-            label: 'Continue with Google',
+            label: _googleLoading
+                ? 'Signing in with Google...'
+                : 'Continue with Google',
             leading: const _GoogleMark(),
-            onPressed: () {},
+            onPressed: _loading || _googleLoading ? null : _signInWithGoogle,
           ),
 
-          const SizedBox(
-            height: AppSpacing.xl,
-          ),
+          const SizedBox(height: AppSpacing.xl),
 
           Row(
             mainAxisAlignment: MainAxisAlignment.center,
             children: [
-              Text(
-                "Don't have an account?",
-                style: AppTextStyles.caption,
-              ),
+              Text("Don't have an account?", style: AppTextStyles.caption),
               TextButton(
                 onPressed: () {
-                  Navigator.pushNamed(
-                    context,
-                    AppRoutes.register,
-                  );
+                  Navigator.pushNamed(context, AppRoutes.register);
                 },
                 child: const Text('Sign Up'),
               ),
@@ -200,13 +211,9 @@ class _AuthShell extends StatelessWidget {
       body: SafeArea(
         child: Center(
           child: SingleChildScrollView(
-            padding: const EdgeInsets.all(
-              AppSpacing.xl,
-            ),
+            padding: const EdgeInsets.all(AppSpacing.xl),
             child: ConstrainedBox(
-              constraints: const BoxConstraints(
-                maxWidth: 460,
-              ),
+              constraints: const BoxConstraints(maxWidth: 460),
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
@@ -216,27 +223,15 @@ class _AuthShell extends StatelessWidget {
                     size: 42,
                   ),
 
-                  const SizedBox(
-                    height: AppSpacing.xxxl,
-                  ),
+                  const SizedBox(height: AppSpacing.xxxl),
 
-                  Text(
-                    title,
-                    style: AppTextStyles.headline,
-                  ),
+                  Text(title, style: AppTextStyles.headline),
 
-                  const SizedBox(
-                    height: AppSpacing.xs,
-                  ),
+                  const SizedBox(height: AppSpacing.xs),
 
-                  Text(
-                    subtitle,
-                    style: AppTextStyles.body,
-                  ),
+                  Text(subtitle, style: AppTextStyles.body),
 
-                  const SizedBox(
-                    height: AppSpacing.xxl,
-                  ),
+                  const SizedBox(height: AppSpacing.xxl),
 
                   child,
                 ],
@@ -256,21 +251,12 @@ class _Divider extends StatelessWidget {
   Widget build(BuildContext context) {
     return Row(
       children: [
-        const Expanded(
-          child: Divider(),
-        ),
+        const Expanded(child: Divider()),
         Padding(
-          padding: const EdgeInsets.symmetric(
-            horizontal: AppSpacing.sm,
-          ),
-          child: Text(
-            'OR',
-            style: AppTextStyles.caption,
-          ),
+          padding: const EdgeInsets.symmetric(horizontal: AppSpacing.sm),
+          child: Text('OR', style: AppTextStyles.caption),
         ),
-        const Expanded(
-          child: Divider(),
-        ),
+        const Expanded(child: Divider()),
       ],
     );
   }

@@ -1,5 +1,9 @@
 node_modules/
 .env
+# Firebase Admin service-account credentials must never be committed.
+*firebase-adminsdk-*.json
+*service-account*.json
+*serviceAccount*.json
 logs/
 build/
 dist/

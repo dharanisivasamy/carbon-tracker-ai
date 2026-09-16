@@ -40,6 +40,7 @@ class TripRepository {
     _trips.value = _trips.value.where((trip) => trip.id != id).toList(growable: false);
     await _persist();
   }
+  Future<void> clear() async { _trips.value = const []; await _persist(); }
 
   Future<void> replaceFromServer(List<TripModel> serverTrips) async {
     final locals = _trips.value.where((trip) => !trip.synced).toList();
